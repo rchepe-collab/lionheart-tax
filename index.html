@@ -32,6 +32,28 @@ E html>
   ╚══════════════════════════════════════════════════════════════╝
 -->
 <head>
+<script>
+/* 🦁 LIONHEART — Carimbo de Isolamento por Produto (TAX)
+   Prefixa as chaves de Storage com 'LHTAX::' para que este produto NUNCA
+   leia/escreva dados de outro produto (CORE) na MESMA origem (GitHub Pages).
+   Envolve getItem/setItem/removeItem no Storage.prototype (writable nos navegadores). */
+(function(){
+  try{
+    if(window.__LH_NS_APPLIED__) return;
+    var P = 'LHTAX::';
+    var S = window.Storage && window.Storage.prototype;
+    if(!S || !S.getItem) return;
+    function pfx(k){ k = String(k); return k.indexOf(P)===0 ? k : P + k; }
+    var _get = S.getItem, _set = S.setItem, _rem = S.removeItem;
+    S.getItem    = function(k){ return _get.call(this, pfx(k)); };
+    S.setItem    = function(k,v){ return _set.call(this, pfx(k), v); };
+    S.removeItem = function(k){ return _rem.call(this, pfx(k)); };
+    window.__LH_NS_APPLIED__ = true;
+  }catch(e){ /* falhou -> mantem padrao, sem quebrar a ferramenta */ }
+})();
+
+</script>
+
 <script>(function(){var h=document.documentElement;try{h.classList.add(localStorage.getItem('lh_welcome_desabilitado_v29')==='1'?'lh-welc-off':'lh-welc-on');}catch(e){h.classList.add('lh-welc-on');}h.classList.add('lh-booting');try{requestAnimationFrame(function(){requestAnimationFrame(function(){h.classList.remove('lh-booting');});});}catch(e){h.classList.remove('lh-booting');}})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -2004,10 +2026,12 @@ function lhFazerLogin(){
     .then(function(r){ return r.json(); })
     .then(function(res){
       if(res.ok){
-        sessionStorage.setItem('lh_logado','sim');
-        sessionStorage.setItem('lh_nome', res.nome || '');
-        var ov = document.getElementById('lh-login-overlay');
-        if(ov) ov.style.display = 'none';
+        if(res.trocar){
+          lhAbrirTroca(email, senha);
+          btn.textContent = 'Entrar'; btn.disabled = false;
+        } else {
+          lhEntrarOk(res);
+        }
       } else {
         msg.textContent = res.motivo || 'Acesso negado.';
         btn.textContent = 'Entrar'; btn.disabled = false;
@@ -2024,6 +2048,54 @@ document.getElementById('lh-login-senha').addEventListener('keydown', function(e
   if(e.key === 'Enter') lhFazerLogin();
 });
 </script>
+
+<!-- 🦁 LIONHEART — TELA DE TROCA DE SENHA (primeiro acesso) -->
+<div id="lh-troca-overlay" style="display:none;position:fixed;inset:0;z-index:100000;background:linear-gradient(135deg,#07111f 0%,#0c1628 100%);align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#0f1d30;border:1px solid rgba(201,162,39,.25);border-radius:14px;padding:28px 26px;max-width:380px;width:100%;box-sizing:border-box;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+    <div style="text-align:center;color:#c9a227;font-weight:800;font-size:1.3em;letter-spacing:.08em;">LIONHEART</div>
+    <div style="text-align:center;color:#8aa0b8;font-size:.8em;margin-bottom:18px;">Primeiro acesso &middot; defina sua nova senha</div>
+    <div style="color:#8aa0b8;font-size:.72em;margin-bottom:6px;letter-spacing:.05em;">NOVA SENHA (m&iacute;n. 6 caracteres)</div>
+    <input id="lh-troca-nova" type="password" autocomplete="new-password" style="width:100%;box-sizing:border-box;padding:11px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:#0a1522;color:#fff;margin-bottom:12px;">
+    <div style="color:#8aa0b8;font-size:.72em;margin-bottom:6px;letter-spacing:.05em;">CONFIRMAR NOVA SENHA</div>
+    <input id="lh-troca-conf" type="password" autocomplete="new-password" style="width:100%;box-sizing:border-box;padding:11px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:#0a1522;color:#fff;margin-bottom:16px;">
+    <button id="lh-troca-btn" onclick="lhTrocarSenha()" style="width:100%;padding:12px;border:none;border-radius:8px;background:linear-gradient(135deg,#c9a227,#e8b020);color:#0c1628;font-weight:700;cursor:pointer;font-size:1em;">Salvar nova senha</button>
+    <div id="lh-troca-msg" style="margin-top:12px;text-align:center;font-size:.82em;color:#ff6b6b;min-height:18px;"></div>
+  </div>
+</div>
+<script>
+var LH_PROD = 'TAX';
+var _lhTrocaEmail = '', _lhTrocaSenha = '';
+function lhEntrarOk(res){
+  try{ sessionStorage.setItem('lh_logado','sim'); sessionStorage.setItem('lh_nome',(res&&res.nome)||''); }catch(e){}
+  var ov=document.getElementById('lh-login-overlay'); if(ov) ov.style.display='none';
+  var tr=document.getElementById('lh-troca-overlay'); if(tr) tr.style.display='none';
+}
+function lhAbrirTroca(email, senha){
+  _lhTrocaEmail=email; _lhTrocaSenha=senha;
+  var lo=document.getElementById('lh-login-overlay'); if(lo) lo.style.display='none';
+  var tr=document.getElementById('lh-troca-overlay'); if(tr) tr.style.display='flex';
+  var n=document.getElementById('lh-troca-nova'); if(n){ n.value=''; setTimeout(function(){try{n.focus();}catch(e){}},50); }
+  var c=document.getElementById('lh-troca-conf'); if(c) c.value='';
+  var m=document.getElementById('lh-troca-msg'); if(m) m.textContent='';
+}
+function lhTrocarSenha(){
+  var nova=(document.getElementById('lh-troca-nova').value||'').trim();
+  var conf=(document.getElementById('lh-troca-conf').value||'').trim();
+  var msg=document.getElementById('lh-troca-msg');
+  var btn=document.getElementById('lh-troca-btn');
+  if(nova.length<6){ msg.textContent='A nova senha precisa ter ao menos 6 caracteres.'; return; }
+  if(nova!==conf){ msg.textContent='As senhas nao conferem.'; return; }
+  if(nova===_lhTrocaSenha){ msg.textContent='A nova senha deve ser diferente da atual.'; return; }
+  btn.textContent='Salvando...'; btn.disabled=true; msg.textContent='';
+  var url=LH_LOGIN_URL+'?action=trocarSenha&email='+encodeURIComponent(_lhTrocaEmail)+'&senha='+encodeURIComponent(_lhTrocaSenha)+'&novaSenha='+encodeURIComponent(nova)+'&produto='+LH_PROD;
+  fetch(url).then(function(r){return r.json();}).then(function(res){
+    if(res.ok){ lhEntrarOk(res); }
+    else { msg.textContent=res.motivo||'Nao foi possivel trocar a senha.'; btn.textContent='Salvar nova senha'; btn.disabled=false; }
+  }).catch(function(){ msg.textContent='Erro de conexao. Tente novamente.'; btn.textContent='Salvar nova senha'; btn.disabled=false; });
+}
+(function(){ var c=document.getElementById('lh-troca-conf'); if(c) c.addEventListener('keydown',function(e){ if(e.key==='Enter') lhTrocarSenha(); }); })();
+</script>
+
 <!-- ════════ FIM DA PORTA DE LOGIN ════════ -->
 
 
